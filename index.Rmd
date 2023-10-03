@@ -1,0 +1,157 @@
+---
+title: "Mapa de Pastos de Sierra Nevada"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+    theme: yeti
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE, message=FALSE, warning=FALSE}
+library('flexdashboard')
+library('rgdal')
+library("leaflet") 
+library("leaflet.extras2")
+library("sf")
+library("tidyverse")
+library("raster")
+library("sp")
+library("lubridate")
+library("leafgl") # add large files points
+```
+
+Mapa de Pastos de Sierra Nevada
+===================================== 
+
+```{r}
+map_base <- leaflet() |> 
+  addWMSTiles(
+    baseUrl = "http://www.ideandalucia.es/wms/mdt_2005?",
+    layers = "Sombreado_10",
+    group = "Hillshade",
+    options = WMSTileOptions(
+      format = "image/png", 
+      transparent = TRUE),
+    attribution = '<a href="http://www.juntadeandalucia.es/institutodeestadisticaycartografia" target="_blank">Instituto de Estadística y Cartografía de Andalucía</a>'
+  ) |>
+  addWMSTiles(
+    baseUrl = "http://www.ign.es/wms-inspire/ign-base?",
+    layers = "IGNBaseTodo",
+    group = "Basemap",
+    attribution = '© <a href="http://www.ign.es/ign/main/index.do" target="_blank">Instituto Geográfico Nacional de España</a>'
+  ) |>  
+  addWMSTiles("http://www.ideandalucia.es/services/toporaster10/wms?",
+    layers = "toporaster10",
+    group = "Topographical",
+    options = WMSTileOptions(
+      format = "image/png", 
+      transparent = FALSE),
+    attribution = '<a href="http://www.juntadeandalucia.es/institutodeestadisticaycartografia" target="_blank">Instituto de Estadística y Cartografía de Andalucía</a>'
+  ) |>
+  addWMSTiles("http://www.ideandalucia.es/wms/mta10r_2001-2013?",
+    layers = "mta10r_2001-2013",
+    group = "topo2013",
+    options = WMSTileOptions(
+      format = "image/png", 
+      transparent = FALSE),
+    attribution = '<a href="http://www.juntadeandalucia.es/institutodeestadisticaycartografia" target="_blank">Instituto de Estadística y Cartografía de Andalucía</a>'
+  ) |> 
+  addProviderTiles("Esri.WorldImagery", group = "Satellite") |> 
+  addWMSTiles("http://www.ign.es/wms-inspire/pnoa-ma",
+    layers = "OI.OrthoimageCoverage",
+    group = "PNOA Máxima Actualidad",
+    options = WMSTileOptions(
+      format = "image/png", 
+      transparent = FALSE),
+    attribution = 'PNOA cedido por © <a href="http://www.ign.es/ign/main/index.do" target="_blank">Instituto Geográfico Nacional de España</a>'
+  ) 
+  
+```
+
+
+
+```{r}
+# Prepare pastos and puntos 
+gpkg  <- "data_raw/mapaPastos.gpkg" 
+
+# mapaPastos <- st_read(gpkg, layer = "mapaPastos", quiet = TRUE)
+
+# Read and prepare ptos 
+puntosParcelas <- st_read(gpkg, layer = "puntosParcelas", quiet = TRUE) |> 
+  mutate(across(cobertura:volumen, ~as.numeric(gsub(",", ".", .)))) |> 
+  mutate(fecha = as.Date(fecha, format = "%d/%m/%y"))
+
+puntosParcelas <- st_transform(puntosParcelas, 4326)
+
+
+popup_puntos <- paste0(
+  "<strong>ID</strong> ", puntosParcelas$punto,
+  "<br><strong>Fecha Muestreo:</strong> ", puntosParcelas$fecha,
+  "<br><strong>Comunidad (nuevoMapaPastos):</strong> ", puntosParcelas$nuevoMapaPastos)
+```
+
+
+Info
+=====================================
+
+Column {.tabset}
+-----------------------------------------------------------------------
+
+Here,  
+
+**References**
+
++ Alcaraz-Segura, D., Cabello, J., Paruelo, J. M., & Delibes, M. 2009. Use of descriptors of ecosystem functioning for monitoring a national park network: a remote sensing approach. Environmental Management, 43(1), 38-48. doi: [10.1007/s00267-008-9154-y](https://doi.org/10.1007/s00267-008-9154-y)
+
+
+
+**More info**
+
++ Definition of [Ecosystem Functional Type](https://en.wikipedia.org/wiki/Ecosystem_Functional_Type) in Wikipedia. 
+
+### Ecosystem Functional Attributes (EFAs) 
+We identified three EFAs that capture most of the variance in the time series of vegetation indices and with a meaningful biological significance (Paruelo et al., 2001; Alcaraz-Segura et al., 2006). These attributes were calculated from the EVI seasonal curve or annual dynamics: the annual mean (***EVI_mean***; an estimator of primary production), the EVI seasonal coefficient of variation (***EVI_sCV***; a descriptor of seasonality), and the date of maximum EVI (***EVI_DMAX***; an indicator of phenology). To summarize the EFAs of 2001-2018, we calculated the mean of the period for each attribute.
+
+### Ecosystem Functional Types (EFTs)
+EFTs were identified following Alcaraz-Segura et al., (2013), from the three EFAs obtained. The range of values of each EFA was divided into four intervals, giving a potential number of 64 EFTs (4 × 4 × 4). For EVI_DMAX, the four intervals agreed with the four seasons of the year. For EVI_mean and EVI_sCV, we extracted the first, second, and third quartiles for each year and then calculated the quartiles means for the 16-year period. To name EFTs, we used two letters and a number: the first capital letter indicates net primary production (EVI_mean), increasing from A to D; the second small letter represents seasonality (EVI_sCV), decreasing from a to d; the numbers are a phenological indicator of the growing season (EVI_DMAX), with values 1-spring, 2-summer, 3-autumn, 4-winter. To summarize the EFTs of the 2001–2018 period, we calculated the dominant EFT (i.e., the mode value for each pixel) of the period.
+
+### Ecosystem Functional Diversity 
+In order to characterize ecosystem functional diversity we used EFT richness and EFT rarity as indicators: 
+
++ ***EFT richness*** map was calculated for each year by counting the number of different EFTs within a 4×4-pixel moving window (924 x 924 m; ~ 1 km^2) across the study area (Alcaraz-Segura et al., 2013). Then, an average richness map across all years was obtained. 
+
++ ***EFT rarity*** map was calculated for each year as the relative extension of each EFT compared to the most abundant EFT (Cabello et al., 2013). Then, we calculated an average rarity map across the period.
+
+\begin{equation}
+ \label{Eq:1}
+ \textbf{Rarity of } EFT_{i} = \frac{\text{Area } EFT_{max} - \text{Area } EFT_{i}} {\text{Area }EFT_{max}}
+\end{equation}
+
+where $\text{Area } EFT_{max}$ is the area occupied by the most abundant EFT and $\text{Area } EFT_{i}$ is the area of the $i$ EFT being evaluated, with $i$ ranging from 1 to 64. 
+
+### Stability in ecosystem functioning
+
+In order to show which are the most stable areas and with the greatest inter-annual variability (either due to directional changes or fluctuations) in ecosystem functioning, the number of different EFTs that occurred in the same pixel in the period 2001-2018.
+
+To obtain a measure equal to the interannual variability but at landscape level, the dissimilarity, i.e., Jaccard's  index 1-coefficient, was calculated. Dissimilarity values range from 0 to 1, with 1 being the highest degree of dissimilarity in composition and relative abundance of EFTs and 0 being absent.
+
+
+
+Credits
+=====================================
+
+This visualization was created within the "Collaboration Agreement between the Department of Environment and Land Planning of the Regional Government of Andalusia and the University of Granada for developing activities related to the Sierra Nevada Global-Change Observatory, within the framework of the Andalusian Network of Global Change Observatories". Funding support was also received from the projects "LIFE-ADAPTAMED (LIFE14 CCA/ES/000612): Protection of key ecosystem services by adaptive management of Climate Change endangered Mediterranean socioecosystems" and the H2020 project "ECOPOTENTIAL: Improving future ecosystem benefits through earth observations" (http://www.ecopotential-project.eu/) (Agreement No 641762). 
+
+The **data** used for this visualization are available at:
+
+* Cazorla BP; Cabello J; Reyes A; Guirado E; Peñas J; Pérez-Luque AJ; Alcaraz-Segura D. (2019): Ecosystem functioning and functional diversity of Sierra Nevada (SE Spain). University of Almería and Granada, PANGAEA, https://doi.pangaea.de/10.1594/PANGAEA.904575  
+
+**More info**: 
+
+* Cazorla BP; Cabello J; Peñas J; Guirado E; Reyes A; Alcaraz-Segura D. (2019). Funcionamiento de la vegetación y diversidad funcional de los ecosistemas de Sierra Nevada. In: Peñas, J. y Lorite, J. (eds.), Biología de la Conservación de plantas en Sierra Nevada. Principios y retos para su preservación. Granada: Editorial Universidad de Granada. 
+
+<br>
+**Developer**: Pérez-Luque, AJ [ajpelu@gmail.com](mailto:ajpelu@gmail.com)  
+
